@@ -49,29 +49,32 @@ if uploaded_file:
 
     resultado["Nivel EMERREL"] = resultado["EMERREL (0-1)"].apply(clasificar_nivel)
 
-    # Mostrar tabla
-    st.dataframe(resultado)
-
-    # Gráfico de EMERREL (línea)
-    st.subheader("EMERREL (0-1)")
-    st.line_chart(resultado.set_index("Fecha")["EMERREL (0-1)"])
-
-    # Gráfico de EMEAC (%)
-    st.subheader("EMEAC (%)")
-    st.line_chart(resultado.set_index("Fecha")["EMEAC (%)"])
-
-    # Gráfico de barras de EMERREL coloreado por nivel
+    # Gráfico de barras de EMERREL por nivel
     st.subheader("Niveles de EMERREL (Bajo, Medio, Alto)")
-
     color_map = {"Bajo": "green", "Medio": "orange", "Alto": "red"}
     bar_colors = resultado["Nivel EMERREL"].map(color_map)
 
-    fig, ax = plt.subplots(figsize=(12, 4))
-    ax.bar(resultado["Fecha"], resultado["EMERREL (0-1)"], color=bar_colors)
-    ax.set_ylabel("EMERREL (0-1)")
-    ax.set_title("Niveles de EMERREL clasificados")
-    ax.tick_params(axis='x', rotation=45)
-    st.pyplot(fig)
+    fig1, ax1 = plt.subplots(figsize=(12, 4))
+    ax1.bar(resultado["Fecha"], resultado["EMERREL (0-1)"], color=bar_colors)
+    ax1.set_ylabel("EMERREL (0-1)")
+    ax1.set_title("Clasificación de niveles EMERREL")
+    ax1.tick_params(axis='x', rotation=45)
+    st.pyplot(fig1)
+
+    # Gráfico EMEAC con niveles de referencia
+    st.subheader("EMEAC (%) con niveles de referencia")
+    nivel_colores = {25: "blue", 50: "green", 75: "orange", 90: "red"}
+
+    fig2, ax2 = plt.subplots(figsize=(12, 4))
+    ax2.plot(resultado["Fecha"], resultado["EMEAC (%)"], label="EMEAC (%)", color="black")
+    for nivel, color in nivel_colores.items():
+        ax2.axhline(y=nivel, color=color, linestyle='--', linewidth=1.5, label=f"{nivel}%")
+        ax2.text(resultado["Fecha"].iloc[-1], nivel + 1, f"{nivel}%", va='bottom', ha='right', color=color, fontsize=9)
+    ax2.set_ylabel("EMEAC (%)")
+    ax2.set_title("EMEAC (%) con umbrales")
+    ax2.tick_params(axis='x', rotation=45)
+    ax2.legend()
+    st.pyplot(fig2)
 
 else:
     st.warning("Por favor carga el archivo 'input.xlsx' con columnas: Julian_days, TMAX, TMIN, Prec.")
