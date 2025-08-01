@@ -49,6 +49,10 @@ if uploaded_file:
 
     resultado["Nivel EMERREL"] = resultado["EMERREL (0-1)"].apply(clasificar_nivel)
 
+    # Mostrar tabla
+    st.subheader("Tabla de Resultados")
+    st.dataframe(resultado)
+
     # Gráfico de barras de EMERREL por nivel
     st.subheader("Niveles de EMERREL (Bajo, Medio, Alto)")
     color_map = {"Bajo": "green", "Medio": "orange", "Alto": "red"}
