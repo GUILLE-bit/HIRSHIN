@@ -5,7 +5,7 @@ from modelo_emerrel import ejecutar_modelo
 import matplotlib.pyplot as plt
 
 # Umbral ajustable por el usuario
-umbral_usuario = st.slider("Seleccione el umbral EMEAC", min_value=1, max_value=50, value=22)
+umbral_usuario = st.slider("Seleccione el umbral EMEAC", min_value=1, max_value=50, value=12)
 
 # Subida de archivo
 uploaded_file = st.file_uploader("Carga tu archivo input.xlsx", type=["xlsx"])
