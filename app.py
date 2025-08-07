@@ -76,3 +76,33 @@ if uploaded_file:
     ax2.tick_params(axis='x', rotation=45)
     ax2.legend()
     st.pyplot(fig2)
+
+    # Gráfico final de EMEAC con umbrales Min, Max y Ajustable
+    st.subheader("EMEAC (%) con área sombreada entre umbrales Min y Max")
+
+    # Cálculos para distintos umbrales
+    emerrel_sum = resultado["EMERREL (0-1)"].values
+    fechas = resultado["Fecha"].values
+
+    def calc_emeac(emerrel, umbral):
+        return np.clip(np.cumsum(emerrel) / umbral * 100, 0, 100)
+
+    emeac_min = calc_emeac(emerrel_sum, 10)
+    emeac_max = calc_emeac(emerrel_sum, 20)
+    emeac_ajustable = resultado["EMEAC (%)"].values
+
+    # Crear gráfico
+    fig, ax = plt.subplots(figsize=(12, 5))
+    ax.plot(fechas, emeac_ajustable, label="Ajustable (16)", color="black", linewidth=2)
+    ax.plot(fechas, emeac_min, label="Min (10)", color="blue", linestyle="--", linewidth=2)
+    ax.plot(fechas, emeac_max, label="Max (20)", color="red", linestyle="--", linewidth=2)
+
+    # Rellenar el área entre curvas min y max
+    ax.fill_between(fechas, emeac_min, emeac_max, color="gray", alpha=0.3, label="Área entre Min y Max")
+
+    ax.set_ylabel("EMEAC (%)")
+    ax.set_title("EMEAC (%) con área sombreada entre umbrales Min y Max")
+    ax.set_ylim(0, 105)
+    ax.legend()
+    ax.grid(True)
+    st.pyplot(fig)
