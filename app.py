@@ -57,6 +57,9 @@ if uploaded_file:
     st.pyplot(fig1)
 
     # Gráfico de EMEAC
+    st.markdown("**Umbrales definidos en el código:**")
+    st.markdown("🔵 Umbral mínimo: 10 &nbsp;&nbsp;&nbsp;&nbsp; 🔴 Umbral máximo: 20")
+    
     st.subheader("EMEAC (%) con niveles de referencia")
     fig2, ax2 = plt.subplots(figsize=(12, 4))
     ax2.plot(resultado["Fecha"], resultado["EMEAC (%)"], label="EMEAC (%)", color="black")
@@ -65,6 +68,11 @@ if uploaded_file:
         ax2.text(resultado["Fecha"].iloc[-1], nivel + 1, f"{nivel}%", va='bottom', ha='right', color=color, fontsize=9)
     ax2.set_ylabel("EMEAC (%)")
     ax2.set_title("EMEAC (%) con umbrales")
+
+    # Líneas horizontales de umbrales mínimos y máximos
+    ax2.axhline(y=100 * resultado["EMERREL (0-1)"].sum() / 10, color='blue', linestyle=':', linewidth=2, label="Umbral Min (10)")
+    ax2.axhline(y=100 * resultado["EMERREL (0-1)"].sum() / 20, color='red', linestyle=':', linewidth=2, label="Umbral Max (20)")
+    
     ax2.tick_params(axis='x', rotation=45)
     ax2.legend()
     st.pyplot(fig2)
