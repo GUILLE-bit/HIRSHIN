@@ -1,6 +1,5 @@
 
 import numpy as np
-import pandas as pd
 
 class PracticalANNModel:
     def __init__(self, IW, bias_IW, LW, bias_out):
@@ -26,23 +25,3 @@ class PracticalANNModel:
         a1 = self.tansig(z1)
         z2 = self.LW @ a1 + self.bias_out
         return self.tansig(z2)
-
-    def predict(self, X_real, fechas, prec):
-        X_norm = self.normalize_input(X_real)
-        emerrel_pred = np.array([self._predict_single(x) for x in X_norm])
-        emerrel_desnorm = self.desnormalize_output(emerrel_pred)
-
-        # Filtro de precipitación acumulada en 8 días >= 5 mm
-        prec_acum_8 = np.convolve(prec, np.ones(8, dtype=int), mode='full')[:len(prec)]
-        filtro_prec = prec_acum_8 >= 5
-        emerrel_filtrado = emerrel_desnorm.copy()
-        emerrel_filtrado[~filtro_prec] = 0
-
-        emeac = np.cumsum(emerrel_filtrado) / self.umbral_emeac
-        emeac_pct = np.clip(emeac * 100, 0, 100)
-
-        return pd.DataFrame({
-            "Fecha": fechas,
-            "EMERREL (0-1)": emerrel_filtrado,
-            "EMEAC (%)": emeac_pct
-        })
