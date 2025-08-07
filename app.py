@@ -5,11 +5,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from modelo_emerrel import ejecutar_modelo
 
-# Definir umbrales en el código
+# Umbrales definidos en código
 UMBRAL_MIN = 10
 UMBRAL_MAX = 20
-
-# Slider para umbral ajustable
 umbral_usuario = st.slider("Seleccione el umbral EMEAC", min_value=UMBRAL_MIN, max_value=UMBRAL_MAX, value=16)
 
 uploaded_file = st.file_uploader("Carga tu archivo input.xlsx", type=["xlsx"])
@@ -42,14 +40,15 @@ if uploaded_file:
             return "Alto"
 
     resultado["Nivel EMERREL"] = resultado["EMERREL (0-1)"].apply(clasificar_nivel)
+
+    # Mostrar tabla
+    st.subheader("Tabla de Resultados")
     st.dataframe(resultado[["Fecha", "Nivel EMERREL", "EMEAC (%)"]])
 
-
-    # Gráfico de barras EMERREL por nivel
+    # Gráfico de barras EMERREL
     st.subheader("Niveles de EMERREL (Bajo, Medio, Alto)")
     color_map = {"Bajo": "green", "Medio": "orange", "Alto": "red"}
     bar_colors = resultado["Nivel EMERREL"].map(color_map)
-
     fig1, ax1 = plt.subplots(figsize=(12, 4))
     ax1.bar(resultado["Fecha"], resultado["EMERREL (0-1)"], color=bar_colors)
     ax1.set_ylabel("EMERREL (0-1)")
@@ -57,13 +56,11 @@ if uploaded_file:
     ax1.tick_params(axis='x', rotation=45)
     st.pyplot(fig1)
 
-    # Gráfico de línea EMEAC con niveles de referencia
+    # Gráfico de EMEAC
     st.subheader("EMEAC (%) con niveles de referencia")
-    nivel_colores = {25: "blue", 50: "green", 75: "orange", 90: "red"}
-
     fig2, ax2 = plt.subplots(figsize=(12, 4))
     ax2.plot(resultado["Fecha"], resultado["EMEAC (%)"], label="EMEAC (%)", color="black")
-    for nivel, color in nivel_colores.items():
+    for nivel, color in {25: "blue", 50: "green", 75: "orange", 90: "red"}.items():
         ax2.axhline(y=nivel, color=color, linestyle='--', linewidth=1.5, label=f"{nivel}%")
         ax2.text(resultado["Fecha"].iloc[-1], nivel + 1, f"{nivel}%", va='bottom', ha='right', color=color, fontsize=9)
     ax2.set_ylabel("EMEAC (%)")
