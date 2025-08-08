@@ -71,7 +71,7 @@ if uploaded_file:
     def calc_emeac(emerrel, umbral):
         return np.clip(np.cumsum(emerrel) / umbral * 100, 0, 100)
 
-    emeac_min = calc_emeac(emerrel_sum, 10)
+    emeac_min = calc_emeac(emerrel_sum, 5)
     emeac_max = calc_emeac(emerrel_sum, 20)
     emeac_ajustable = resultado["EMEAC (%)"].values
 
