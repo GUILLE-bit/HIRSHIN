@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from modelo_emerrel import ejecutar_modelo
 
 # Umbrales definidos en código
-UMBRAL_MIN = 5
-UMBRAL_MAX = 20
+UMBRAL_MIN = 9
+UMBRAL_MAX = 17
 umbral_usuario = st.slider("Seleccione el umbral EMEAC", min_value=UMBRAL_MIN, max_value=UMBRAL_MAX, value=16)
 
 uploaded_file = st.file_uploader("Carga tu archivo input.xlsx", type=["xlsx"])
@@ -71,13 +71,13 @@ if uploaded_file:
     def calc_emeac(emerrel, umbral):
         return np.clip(np.cumsum(emerrel) / umbral * 100, 0, 100)
 
-    emeac_min = calc_emeac(emerrel_sum, 5)
-    emeac_max = calc_emeac(emerrel_sum, 20)
+    emeac_min = calc_emeac(emerrel_sum, 9)
+    emeac_max = calc_emeac(emerrel_sum, 17)
     emeac_ajustable = resultado["EMEAC (%)"].values
 
     # Crear gráfico
     fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(fechas, emeac_ajustable, label="Ajustable (16)", color="black", linewidth=2)
+    ax.plot(fechas, emeac_ajustable, label="Ajustable (15)", color="black", linewidth=2)
     ax.plot(fechas, emeac_min, label="Min (10)", color="blue", linestyle="--", linewidth=2)
     ax.plot(fechas, emeac_max, label="Max (20)", color="red", linestyle="--", linewidth=2)
 
