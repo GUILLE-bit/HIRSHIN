@@ -8,7 +8,7 @@ from modelo_emerrel import ejecutar_modelo
 # Umbrales definidos en código
 UMBRAL_MIN = 9
 UMBRAL_MAX = 17
-umbral_usuario = st.slider("Seleccione el umbral EMEAC", min_value=UMBRAL_MIN, max_value=UMBRAL_MAX, value=16)
+umbral_usuario = st.slider("Seleccione el umbral EMEAC", min_value=UMBRAL_MIN, max_value=UMBRAL_MAX, value=15)
 
 uploaded_file = st.file_uploader("Carga tu archivo input.xlsx", type=["xlsx"])
 if uploaded_file:
@@ -58,7 +58,7 @@ if uploaded_file:
 
     # Gráfico de EMEAC
     st.markdown("**Umbrales definidos en el código:**")
-    st.markdown("🔵 Umbral mínimo: 10 &nbsp;&nbsp;&nbsp;&nbsp; 🔴 Umbral máximo: 20")
+    st.markdown("🔵 Umbral mínimo: 9 &nbsp;&nbsp;&nbsp;&nbsp; 🔴 Umbral máximo: 17")
     
 
     # Gráfico final de EMEAC con umbrales Min, Max y Ajustable
@@ -78,8 +78,8 @@ if uploaded_file:
     # Crear gráfico
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.plot(fechas, emeac_ajustable, label="Ajustable (15)", color="black", linewidth=2)
-    ax.plot(fechas, emeac_min, label="Min (10)", color="blue", linestyle="--", linewidth=2)
-    ax.plot(fechas, emeac_max, label="Max (20)", color="red", linestyle="--", linewidth=2)
+    ax.plot(fechas, emeac_min, label="Min (9)", color="blue", linestyle="--", linewidth=2)
+    ax.plot(fechas, emeac_max, label="Max (17)", color="red", linestyle="--", linewidth=2)
 
     # Rellenar el área entre curvas min y max
     ax.fill_between(fechas, emeac_min, emeac_max, color="gray", alpha=0.3, label="Área entre Min y Max")
