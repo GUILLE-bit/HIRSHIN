@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from modelo_emerrel import ejecutar_modelo
 
 # Umbrales definidos en código
-UMBRAL_MIN = 10
+UMBRAL_MIN = 5
 UMBRAL_MAX = 20
 umbral_usuario = st.slider("Seleccione el umbral EMEAC", min_value=UMBRAL_MIN, max_value=UMBRAL_MAX, value=16)
 
