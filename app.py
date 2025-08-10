@@ -49,15 +49,15 @@ if uploaded_file:
     st.subheader("Niveles de EMERREL (Bajo, Medio, Alto)")
     color_map = {"Bajo": "green", "Medio": "orange", "Alto": "red"}
     bar_colors = resultado["Nivel EMERREL"].map(color_map)
-# Calcular media móvil de 5 días
-resultado["EMERREL_MA5"] = resultado["EMERREL (0-1)"].rolling(window=5, min_periods=1).mean()
+    # Calcular media móvil de 5 días
+    resultado["EMERREL_MA5"] = resultado["EMERREL (0-1)"].rolling(window=5, min_periods=1).mean()
     fig1, ax1 = plt.subplots(figsize=(12, 4))
-ax1.bar(resultado["Fecha"], resultado["EMERREL (0-1)"], color=bar_colors, label="EMERREL (0-1)")
-ax1.plot(resultado["Fecha"], resultado["EMERREL_MA5"], color="blue", linewidth=2.2, label="Media móvil 5 días")
+    ax1.bar(resultado["Fecha"], resultado["EMERREL (0-1)"], color=bar_colors, label="EMERREL (0-1)")
+    ax1.plot(resultado["Fecha"], resultado["EMERREL_MA5"], color="blue", linewidth=2.2, label="Media móvil 5 días")
     ax1.set_ylabel("EMERREL (0-1)")
     ax1.set_title("Clasificación de niveles EMERREL")
     ax1.tick_params(axis='x', rotation=45)
-ax1.legend(loc="upper right")
+    ax1.legend(loc="upper right")
     st.pyplot(fig1)
 
     # Gráfico de EMEAC
