@@ -1,8 +1,8 @@
-
 import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 
 from modelo_emerrel import ejecutar_modelo
 from meteobahia import (
@@ -82,7 +82,7 @@ fechas_excel = usar_fechas_de_input(input_df_raw, len(resultado))
 if fechas_excel is not None:
     resultado["Fecha"] = fechas_excel
 
-# Clasificación textual (presentación)
+# Clasificación textual (presentación, tabla completa)
 def clasificar_nivel(valor):
     if valor < 0.33:
         return "Bajo"
@@ -108,15 +108,29 @@ else:
     )
     st.dataframe(tabla, use_container_width=True)
 
-    # ============ EMERREL (rango) ============
+    # ============ EMERREL (rango) con colores por nivel ============
     st.subheader("EMERREL (0-1) y MA5 en rango 1-feb → 1-oct (reiniciado)")
+    # Clasificación por nivel dentro del RANGO y mapeo de colores
+    def clasificar_nivel_rango(v):
+        if v < 0.33:
+            return "Bajo"
+        elif v < 0.66:
+            return "Medio"
+        else:
+            return "Alto"
+    pred_vis["Nivel EMERREL (rango)"] = pred_vis["EMERREL (0-1)"].apply(clasificar_nivel_rango)
+    color_map = {"Bajo": "green", "Medio": "yellow", "Alto": "red"}
+    bar_colors = pred_vis["Nivel EMERREL (rango)"].map(color_map)
+
     fig1, ax1 = plt.subplots(figsize=(12, 4))
-    ax1.bar(pred_vis["Fecha"], pred_vis["EMERREL (0-1)"], label="EMERREL (0-1)")
-    ax1.plot(pred_vis["Fecha"], pred_vis["EMERREL_MA5_rango"], linewidth=2.2, label="Media móvil 5 días")
+    ax1.bar(pred_vis["Fecha"], pred_vis["EMERREL (0-1)"], color=bar_colors)
+    line_ma5 = ax1.plot(pred_vis["Fecha"], pred_vis["EMERREL_MA5_rango"], linewidth=2.2, label="Media móvil 5 días")[0]
     ax1.set_ylabel("EMERREL (0-1)")
     ax1.set_title("EMERREL en rango 1-feb → 1-oct (acumulados reiniciados)")
     ax1.tick_params(axis='x', rotation=45)
-    ax1.legend(loc="upper right")
+    # Leyenda: parches para niveles + línea MA5
+    nivel_handles = [Patch(facecolor=color_map[k], label=k) for k in ["Bajo","Medio","Alto"]]
+    ax1.legend(handles=nivel_handles + [line_ma5], loc="upper right")
     st.pyplot(fig1)
 
     # ============ EMEAC (rango) con Min/Max/Ajustable ============
@@ -134,4 +148,5 @@ else:
     ax.legend()
     ax.grid(True)
     st.pyplot(fig)
+
 
