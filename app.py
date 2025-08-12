@@ -1,3 +1,4 @@
+
 # app.py
 import streamlit as st
 import numpy as np
@@ -13,16 +14,20 @@ from meteobahia import (
     UMBRAL_MIN,
     UMBRAL_MAX,
 )
-from meteobahia_api import fetch_meteobahia_api_xml
+from meteobahia_api import fetch_meteobahia_api_xml  # Debe incluir headers "tipo navegador"
 
 st.set_page_config(page_title="MeteoBahía - EMERREL/EMEAC", layout="wide")
 
-# ====================== Estado inicial (URL/TOKEN recordados) ======================
+# ====================== Estado inicial persistente ======================
 DEFAULT_API_URL = "https://meteobahia.com.ar/scripts/forecast/for-bd.xml"
 if "api_url" not in st.session_state:
     st.session_state["api_url"] = DEFAULT_API_URL
 if "api_token" not in st.session_state:
     st.session_state["api_token"] = ""
+if "reload_nonce" not in st.session_state:
+    st.session_state["reload_nonce"] = 0
+if "compat_headers" not in st.session_state:
+    st.session_state["compat_headers"] = True  # usar headers de navegador por defecto
 
 # ============== Sidebar: selección de fuente y opciones ==============
 st.sidebar.header("Fuente de datos")
@@ -37,15 +42,11 @@ umbral_usuario = st.sidebar.slider(
     min_value=UMBRAL_MIN, max_value=UMBRAL_MAX, value=15
 )
 
-# =================== Cache de descarga API (evita re-llamadas) ===================
+# =================== Cache de descarga API con NONCE ===================
 @st.cache_data(ttl=600)
-def _fetch_api_cached(url: str, token: str | None):
-    return fetch_meteobahia_api_xml(url.strip(), token=token or None)
-
-# ================= Botón de actualización dura (limpia caché y rerun) ==============
-def _forzar_actualizacion():
-    _fetch_api_cached.clear()
-    st.rerun()
+def _fetch_api_cached(url: str, token: str | None, nonce: int, use_browser_headers: bool):
+    # 'nonce' se usa solo para invalidar caché; no afecta la llamada
+    return fetch_meteobahia_api_xml(url.strip(), token=token or None, use_browser_headers=use_browser_headers)
 
 st.title("MeteoBahía · EMERREL y EMEAC (rango 1-feb → 1-oct)")
 
@@ -65,7 +66,7 @@ if fuente == "Subir Excel":
 elif fuente == "API MeteoBahía (XML)":
     st.sidebar.subheader("Configuración API XML")
 
-    # Widgets con key (no reasignar session_state aquí)
+    # Widgets con key (persisten en session_state)
     st.sidebar.text_input(
         "URL completa del XML",
         key="api_url",
@@ -78,25 +79,38 @@ elif fuente == "API MeteoBahía (XML)":
         type="password",
         value=st.session_state["api_token"],
     )
+    st.session_state["compat_headers"] = st.sidebar.checkbox(
+        "Modo compatibilidad (headers de navegador)", value=st.session_state["compat_headers"]
+    )
 
-    # Botón de actualización dura
-    st.sidebar.button("Actualizar ahora (forzar recarga)", on_click=_forzar_actualizacion)
+    # Botón que incrementa el NONCE (fuerza refetch sin rerun)
+    if st.sidebar.button("Actualizar ahora (forzar recarga)"):
+        st.session_state["reload_nonce"] += 1
 
     # Descarga automática cuando hay URL válida
     api_url = st.session_state["api_url"] or ""
     token = st.session_state["api_token"] or ""
+    compat = bool(st.session_state["compat_headers"])
 
     if api_url.strip():
         try:
             with st.spinner("Descargando desde API (XML)…"):
-                df_api = _fetch_api_cached(api_url, token)
+                df_api = _fetch_api_cached(api_url, token, st.session_state["reload_nonce"], compat)
             if df_api is None or df_api.empty:
                 st.warning("La API respondió sin datos o con XML vacío.")
             else:
                 input_df_raw = df_api.copy()
                 source_label = f"API (XML): {api_url}"
         except Exception as e:
-            st.error(f"Error llamando a la API XML: {e}")
+            # Mostrar código HTTP si está disponible
+            try:
+                import requests
+                if isinstance(e, requests.HTTPError) and e.response is not None:
+                    st.error(f"Error API XML (HTTP {e.response.status_code}): {e}")
+                else:
+                    st.error(f"Error llamando a la API XML: {e}")
+            except Exception:
+                st.error(f"Error llamando a la API XML: {e}")
     else:
         st.info("Ingresá la URL real del XML para iniciar la descarga automática.")
 
@@ -137,7 +151,6 @@ def clasificar_nivel(valor):
         return "Medio"
     else:
         return "Alto"
-
 resultado["Nivel EMERREL"] = resultado["EMERREL (0-1)"].apply(clasificar_nivel)
 
 # ================= Vista reiniciada: 1-feb → 1-oct =================
@@ -190,5 +203,6 @@ else:
     ax.grid(True)
     st.pyplot(fig)
 
-
-
+# ================= Tabla completa del modelo (sin reinicio) =================
+st.subheader("Tabla completa (salida del modelo, sin reinicio)")
+st.dataframe(resultado[["Fecha", "Nivel EMERREL", "EMEAC (%)"]], use_container_width=True)
