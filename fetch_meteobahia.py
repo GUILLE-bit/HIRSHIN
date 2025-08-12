@@ -11,7 +11,7 @@ import pandas as pd
 CSV_URL_PAGES = "https://GUILLE-bit.github.io/ANN/meteo_daily.csv"
 CSV_URL_RAW   = "https://raw.githubusercontent.com/GUILLE-bit/ANN/gh-pages/meteo_daily.csv"
 
-# Columnas mínimas esperadas (no forzamos EMERREL aquí porque proviene del modelo)
+# Columnas mínimas esperadas (EMERREL proviene del modelo)
 _REQUIRED_COLS = {"Fecha", "Julian_days", "TMAX", "TMIN", "Prec"}
 
 def load_public_csv(parse_dates: bool = True) -> tuple[pd.DataFrame, str]:
@@ -22,10 +22,7 @@ def load_public_csv(parse_dates: bool = True) -> tuple[pd.DataFrame, str]:
     last_err = None
     for url in (CSV_URL_PAGES, CSV_URL_RAW):
         try:
-            if parse_dates:
-                df = pd.read_csv(url, parse_dates=["Fecha"])
-            else:
-                df = pd.read_csv(url)
+            df = pd.read_csv(url, parse_dates=["Fecha"] if parse_dates else None)
 
             # Normaliza/valida Fecha
             if "Fecha" not in df.columns:
@@ -54,3 +51,4 @@ def load_public_csv_between(start: str | pd.Timestamp,
     df, url = load_public_csv(parse_dates=True)
     mask = (df["Fecha"] >= pd.to_datetime(start)) & (df["Fecha"] <= pd.to_datetime(end))
     return df.loc[mask].reset_index(drop=True), url
+
