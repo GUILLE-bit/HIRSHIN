@@ -18,8 +18,8 @@ from meteobahia_api import fetch_meteobahia_api_xml  # usa headers tipo navegado
 st.set_page_config(page_title="MeteoBahía - EMERREL/EMEAC", layout="wide")
 
 # ====================== UMBRALES EMEAC (EDITABLES EN CÓDIGO) ======================
-EMEAC_MIN = 1    # Cambiá aquí el umbral mínimo por defecto
-EMEAC_MAX = 10   # Cambiá aquí el umbral máximo por defecto
+EMEAC_MIN = 5    # Cambiá aquí el umbral mínimo por defecto
+EMEAC_MAX = 8   # Cambiá aquí el umbral máximo por defecto
 
 # ====================== Estado persistente ======================
 DEFAULT_API_URL  = "https://meteobahia.com.ar/scripts/forecast/for-bd.xml"
