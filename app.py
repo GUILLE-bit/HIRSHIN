@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -12,7 +13,7 @@ from meteobahia import (
     UMBRAL_MIN,
     UMBRAL_MAX,
 )
-from fetch_meteobahia import load_public_csv
+from meteobahia_api import fetch_meteobahia_api_xml
 
 st.set_page_config(page_title="MeteoBahía - EMERREL/EMEAC", layout="wide")
 
@@ -20,7 +21,7 @@ st.set_page_config(page_title="MeteoBahía - EMERREL/EMEAC", layout="wide")
 st.sidebar.header("Fuente de datos")
 fuente = st.sidebar.radio(
     "Elegí cómo cargar datos",
-    options=["Subir Excel", "MeteoBahía (CSV público)"],
+    options=["Subir Excel", "API MeteoBahía (XML)"],
     index=0,
 )
 
@@ -44,14 +45,23 @@ if fuente == "Subir Excel":
         except Exception as e:
             st.error(f"No pude leer el Excel: {e}")
 
-elif fuente == "MeteoBahía (CSV público)":
-    if st.sidebar.button("Descargar CSV público"):
+elif fuente == "API MeteoBahía (XML)":
+    st.sidebar.subheader("Configuración API XML")
+    api_url = st.sidebar.text_input(
+        "URL completa del XML",
+        value="https://TU_API/endpoint.xml",  # ← reemplazá por tu endpoint real
+        help="Pega aquí la URL que devuelve el XML como el ejemplo adjunto."
+    )
+    token = st.sidebar.text_input("Bearer token (opcional)", value="", type="password")
+    btn_api = st.sidebar.button("Descargar desde API (XML)")
+
+    if btn_api:
         try:
-            df_pub, src = load_public_csv()
-            input_df_raw = df_pub.copy()
-            source_label = f"CSV público (origen: {src})"
+            df_api = fetch_meteobahia_api_xml(api_url, token=token or None)
+            input_df_raw = df_api.copy()
+            source_label = f"API (XML): {api_url}"
         except Exception as e:
-            st.error(f"No pude descargar CSV público: {e}")
+            st.error(f"Error llamando a la API XML: {e}")
 
 # Si no hay datos aún, avisar y salir
 if input_df_raw is None or input_df_raw.empty:
@@ -90,6 +100,7 @@ def clasificar_nivel(valor):
         return "Medio"
     else:
         return "Alto"
+
 resultado["Nivel EMERREL"] = resultado["EMERREL (0-1)"].apply(clasificar_nivel)
 
 # ================= Vista reiniciada: 1-feb → 1-oct =================
@@ -110,15 +121,7 @@ else:
 
     # ============ EMERREL (rango) con colores por nivel ============
     st.subheader("EMERREL (0-1) y MA5 en rango 1-feb → 1-oct (reiniciado)")
-    # Clasificación por nivel dentro del RANGO y mapeo de colores
-    def clasificar_nivel_rango(v):
-        if v < 0.33:
-            return "Bajo"
-        elif v < 0.66:
-            return "Medio"
-        else:
-            return "Alto"
-    pred_vis["Nivel EMERREL (rango)"] = pred_vis["EMERREL (0-1)"].apply(clasificar_nivel_rango)
+    pred_vis["Nivel EMERREL (rango)"] = pred_vis["EMERREL (0-1)"].apply(clasificar_nivel)
     color_map = {"Bajo": "green", "Medio": "yellow", "Alto": "red"}
     bar_colors = pred_vis["Nivel EMERREL (rango)"].map(color_map)
 
@@ -128,6 +131,7 @@ else:
     ax1.set_ylabel("EMERREL (0-1)")
     ax1.set_title("EMERREL en rango 1-feb → 1-oct (acumulados reiniciados)")
     ax1.tick_params(axis='x', rotation=45)
+
     # Leyenda: parches para niveles + línea MA5
     nivel_handles = [Patch(facecolor=color_map[k], label=k) for k in ["Bajo","Medio","Alto"]]
     ax1.legend(handles=nivel_handles + [line_ma5], loc="upper right")
@@ -148,5 +152,4 @@ else:
     ax.legend()
     ax.grid(True)
     st.pyplot(fig)
-
 
