@@ -21,16 +21,20 @@ st.set_page_config(page_title="MeteoBahía - EMERREL/EMEAC", layout="wide")
 
 # ====================== Estado persistente ======================
 DEFAULT_API_URL = "https://meteobahia.com.ar/scripts/forecast/for-bd.xml"
+DEFAULT_HIST_URL = "https://raw.githubusercontent.com/GUILLE-bit/HIRSHIN/main/data/historico.xlsx"
+
 if "api_url" not in st.session_state:
     st.session_state["api_url"] = DEFAULT_API_URL
 if "api_token" not in st.session_state:
     st.session_state["api_token"] = ""
+if "hist_url" not in st.session_state:
+    st.session_state["hist_url"] = DEFAULT_HIST_URL
 if "reload_nonce" not in st.session_state:
     st.session_state["reload_nonce"] = 0
 if "compat_headers" not in st.session_state:
     st.session_state["compat_headers"] = True
 if "debug" not in st.session_state:
-    st.session_state["debug"] = True  # deja debug ON por defecto
+    st.session_state["debug"] = True  # debug ON por defecto
 
 # ================= Sidebar =================
 st.sidebar.header("Fuente de datos")
@@ -49,62 +53,86 @@ st.sidebar.checkbox("Modo debug (ver diagnósticos)", key="debug")
 # ============== Helpers =================
 @st.cache_data(ttl=600)
 def fetch_api_cached(url: str, token: str | None, nonce: int, use_browser_headers: bool):
+    # 'nonce' invalida la caché
     return fetch_meteobahia_api_xml(url.strip(), token=token or None, use_browser_headers=use_browser_headers)
 
 def normalize_hist(df_hist: pd.DataFrame, api_year: int) -> pd.DataFrame:
-    """Normaliza histórico: acepta Fecha o solo Julian_days. Valida 1–366."""
+    """Normaliza histórico: acepta Fecha o solo Julian_days. Valida 1–365/366 y nombres variados."""
+    import calendar
     df = df_hist.copy()
-    mapping = {
-        "fecha": "Fecha", "Fecha": "Fecha",
-        "julian": "Julian_days", "Julian_days": "Julian_days",
-        "tmax": "TMAX", "TMAX": "TMAX",
-        "tmin": "TMIN", "TMIN": "TMIN",
-        "prec": "Prec", "Prec": "Prec", "ppt": "Prec", "precip": "Prec",
-    }
-    df = df.rename(columns={k: v for k, v in mapping.items() if k in df.columns})
+
+    # 1) limpiar y mapear encabezados (tolerante)
+    df.columns = [str(c).strip() for c in df.columns]
+    low2orig = {c.lower(): c for c in df.columns}
+    def has(c): return c in low2orig
+    def col(c): return low2orig[c]
+
+    ren = {}
+    for cands, tgt in [
+        (["fecha", "date", "fechas"], "Fecha"),
+        (["julian_days", "julianday", "julian", "dia_juliano"], "Julian_days"),
+        (["tmax", "t_max", "t max", "tx", "tmax(°c)"], "TMAX"),
+        (["tmin", "t_min", "t min", "tn", "tmin(°c)"], "TMIN"),
+        (["prec", "ppt", "precip", "lluvia", "mm", "prcp"], "Prec"),
+    ]:
+        for c in cands:
+            if has(c):
+                ren[col(c)] = tgt
+                break
+    df = df.rename(columns=ren)
+
+    # 2) tipos
+    if "Fecha" in df.columns:
+        df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
     for c in ["TMAX", "TMIN", "Prec", "Julian_days"]:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    # Validación Julian_days
+    # 3) validar Julian_days
+    leap = calendar.isleap(int(api_year))
+    max_j = 366 if leap else 365
     if "Julian_days" in df.columns:
         jd = df["Julian_days"]
         nonint = jd.notna() & (jd != np.floor(jd))
-        out_range = jd.notna() & ((jd < 1) | (jd > 366))
-        bad = nonint | out_range | jd.isna()
+        out_range = jd.notna() & ((jd < 1) | (jd > max_j))
+        nan = jd.isna()
+        bad = nonint | out_range | nan
         if bad.any() and st.session_state["debug"]:
-            st.warning(
-                f"Histórico: descartadas {int(bad.sum())} filas por Julian_days inválidos "
-                f"(no enteros: {int(nonint.sum())}, fuera 1–366: {int(out_range.sum())}, NaN: {int(jd.isna().sum())})"
-            )
+            detalles = []
+            ni = int(nonint.sum()); ni and detalles.append(f"no enteros: {ni}")
+            fr = int(out_range.sum()); fr and detalles.append(f"fuera de 1–{max_j}: {fr}")
+            na = int(nan.sum());      na and detalles.append(f"NaN: {na}")
+            st.warning(f"Histórico: descartadas {int(bad.sum())} filas por Julian_days inválidos ({', '.join(detalles)}).")
         df = df.loc[~bad].copy()
-        if not df.empty:
+        if not df.empty and "Julian_days" in df.columns:
             df["Julian_days"] = df["Julian_days"].astype(int)
 
-    # Derivar Fecha si falta
+    # 4) derivar Fecha si falta y hay Julian_days
     if "Fecha" not in df.columns and "Julian_days" in df.columns and not df.empty:
-        base = pd.Timestamp(year=int(api_year), month=1, day=1)
-        df["Fecha"] = df["Julian_days"].apply(lambda d: base + pd.Timedelta(days=int(d) - 1))
+        base = pd.Timestamp(int(api_year), 1, 1)
+        df["Fecha"] = df["Julian_days"].astype(int).apply(lambda d: base + pd.Timedelta(days=d - 1))
 
-    if "Fecha" in df.columns:
-        df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
-
+    # 5) si falta Julian_days pero hay Fecha
     if "Julian_days" not in df.columns and "Fecha" in df.columns:
         df["Julian_days"] = df["Fecha"].dt.dayofyear
 
-    # Filtrar año incorrecto
+    # 6) filtrar fuera del año API
     if "Fecha" in df.columns and not df.empty:
-        wrong = df["Fecha"].dt.year != int(api_year)
-        if wrong.any() and st.session_state["debug"]:
-            st.warning(f"Histórico: descartadas {int(wrong.sum())} filas fuera del año {api_year}.")
-        df = df.loc[~wrong].copy()
+        wrong_year = df["Fecha"].dt.year != int(api_year)
+        if wrong_year.any() and st.session_state["debug"]:
+            st.warning(f"Histórico: descartadas {int(wrong_year.sum())} filas que no son del año {api_year}.")
+        df = df.loc[~wrong_year].copy()
 
+    # 7) validar columnas requeridas
     req = {"Fecha", "Julian_days", "TMAX", "TMIN", "Prec"}
     faltan = req - set(df.columns)
     if faltan:
         raise ValueError(f"Histórico sin columnas requeridas: {faltan}")
 
+    # 8) limpieza final y consistencia
     df = df.dropna(subset=["Fecha"]).sort_values("Fecha").reset_index(drop=True)
+    if df.empty:
+        return df
     df["Julian_days"] = df["Fecha"].dt.dayofyear
     for c in ["TMAX", "TMIN", "Prec"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
@@ -114,9 +142,7 @@ def read_hist_upload(file) -> pd.DataFrame:
     if file is None:
         return pd.DataFrame()
     try:
-        if file.name.lower().endswith(".csv"):
-            return pd.read_csv(file)
-        return pd.read_excel(file)
+        return pd.read_csv(file) if file.name.lower().endswith(".csv") else pd.read_excel(file)
     except Exception as e:
         st.error(f"No pude leer el histórico subido: {e}")
         return pd.DataFrame()
@@ -126,14 +152,12 @@ def read_hist_from_url(url: str) -> pd.DataFrame:
         return pd.DataFrame()
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url.strip(), headers=headers, timeout=20)
+        r = requests.get(url.strip(), headers=headers, timeout=25)
         r.raise_for_status()
-        content = r.content
-        # Heurística simple por extensión
+        buf = io.BytesIO(r.content)
         if url.lower().endswith(".csv"):
-            return pd.read_csv(io.BytesIO(content))
-        # Default a XLSX
-        return pd.read_excel(io.BytesIO(content))
+            return pd.read_csv(buf)
+        return pd.read_excel(buf)
     except Exception as e:
         st.error(f"No pude descargar el histórico desde la URL: {e}")
         return pd.DataFrame()
@@ -145,8 +169,9 @@ input_df_raw = None
 source_label = None
 
 if fuente == "API + Histórico":
+    # Pronóstico API
     st.sidebar.subheader("Pronóstico (API XML)")
-    st.sidebar.text_input("URL XML", key="api_url", help="Endpoint de pronóstico (hoy → +12 días).")
+    st.sidebar.text_input("URL XML", key="api_url", help="Endpoint (hoy → +12 días).")
     st.sidebar.text_input("Bearer token (opcional)", key="api_token", type="password")
     st.session_state["compat_headers"] = st.sidebar.checkbox(
         "Compatibilidad (headers de navegador)", value=st.session_state["compat_headers"]
@@ -157,9 +182,9 @@ if fuente == "API + Histórico":
         st.session_state["reload_nonce"] += 1
 
     # Histórico privado
-    st.sidebar.subheader("Histórico (privado)")
-    hist_file = st.sidebar.file_uploader("Subir histórico (CSV/XLSX)", type=["csv", "xlsx"])
-    hist_url = st.sidebar.text_input("o pegar URL privada (CSV/XLSX)", value="")
+    st.sidebar.subheader("Histórico")
+    hist_file = st.sidebar.file_uploader("Subir (CSV/XLSX)", type=["csv", "xlsx"])
+    hist_url = st.sidebar.text_input("o URL (CSV/XLSX)", key="hist_url")
 
     api_url = st.session_state["api_url"] or ""
     token = st.session_state["api_token"] or ""
@@ -185,11 +210,11 @@ if fuente == "API + Histórico":
     if hist_file is not None:
         dfh_raw = read_hist_upload(hist_file)
         if st.session_state["debug"] and not dfh_raw.empty:
-            st.info(f"Histórico subido: {len(dfh_raw)} filas (sin normalizar)")
+            st.info(f"Histórico subido (sin normalizar): {len(dfh_raw)} filas · cols={list(dfh_raw.columns)}")
     elif hist_url.strip():
         dfh_raw = read_hist_from_url(hist_url)
         if st.session_state["debug"] and not dfh_raw.empty:
-            st.info(f"Histórico (URL): {len(dfh_raw)} filas (sin normalizar)")
+            st.info(f"Histórico (URL) sin normalizar: {len(dfh_raw)} filas · cols={list(dfh_raw.columns)}")
 
     # 3) Fusión
     if not df_api.empty:
@@ -202,10 +227,20 @@ if fuente == "API + Histórico":
         if not dfh_raw.empty and end_hist >= start_hist:
             try:
                 df_hist_all = normalize_hist(dfh_raw, api_year=api_year)
-                m = (df_hist_all["Fecha"] >= start_hist) & (df_hist_all["Fecha"] <= end_hist)
-                df_hist_trim = df_hist_all.loc[m].copy()
-                if st.session_state["debug"] and not df_hist_trim.empty:
-                    st.success(f"Hist recortado: {len(df_hist_trim)} filas, {df_hist_trim['Fecha'].min().date()} → {df_hist_trim['Fecha'].max().date()}")
+                if df_hist_all.empty:
+                    st.warning("Histórico normalizado no tiene filas.")
+                else:
+                    if st.session_state["debug"]:
+                        st.info(f"Hist normalizado: {len(df_hist_all)} filas, "
+                                f"{df_hist_all['Fecha'].min().date()} → {df_hist_all['Fecha'].max().date()}")
+                    m = (df_hist_all["Fecha"] >= start_hist) & (df_hist_all["Fecha"] <= end_hist)
+                    df_hist_trim = df_hist_all.loc[m].copy()
+                    if df_hist_trim.empty:
+                        st.warning(f"Histórico no aporta filas en {start_hist.date()} → {end_hist.date()} "
+                                   f"(¿año {api_year} y rango correcto?).")
+                    elif st.session_state["debug"]:
+                        st.success(f"Hist recortado: {len(df_hist_trim)} filas, "
+                                   f"{df_hist_trim['Fecha'].min().date()} → {df_hist_trim['Fecha'].max().date()}")
             except Exception as e:
                 st.error(f"Error normalizando histórico: {e}")
 
@@ -220,16 +255,15 @@ if fuente == "API + Histórico":
             st.stop()
 
         input_df_raw = df_all.copy()
-        fuente_parts = ["API"]
+        src = ["API"]
         if not df_hist_trim.empty:
-            fuente_parts.append(f"Hist ({df_hist_trim['Fecha'].min().date()} → {df_hist_trim['Fecha'].max().date()})")
-        source_label = " + ".join(fuente_parts)
-
+            src.append(f"Hist ({df_hist_trim['Fecha'].min().date()} → {df_hist_trim['Fecha'].max().date()})")
+        source_label = " + ".join(src)
         if st.session_state["debug"]:
-            st.info(f"Fusionado: {len(input_df_raw)} filas, {input_df_raw['Fecha'].min().date()} → {input_df_raw['Fecha'].max().date()}")
-
+            st.info(f"Fusionado: {len(input_df_raw)} filas, "
+                    f"{input_df_raw['Fecha'].min().date()} → {input_df_raw['Fecha'].max().date()}")
     else:
-        st.warning("Sin datos de API. Cargá la URL y/o revisá el bloqueo 403 (probar compatibilidad).")
+        st.warning("Sin datos de API. Cargá la URL o activá compatibilidad.")
 
 elif fuente == "Subir Excel":
     uploaded_file = st.file_uploader("Cargar archivo input.xlsx", type=["xlsx"])
@@ -239,11 +273,10 @@ elif fuente == "Subir Excel":
             source_label = f"Excel: {uploaded_file.name}"
             if st.session_state["debug"]:
                 if "Fecha" in input_df_raw.columns:
-                    try:
-                        f = pd.to_datetime(input_df_raw["Fecha"], errors="coerce")
-                        st.info(f"Excel: {len(input_df_raw)} filas, {f.min().date()} → {f.max().date()}")
-                    except Exception:
-                        st.info(f"Excel: {len(input_df_raw)} filas")
+                    f = pd.to_datetime(input_df_raw["Fecha"], errors="coerce")
+                    st.info(f"Excel: {len(input_df_raw)} filas, {f.min().date()} → {f.max().date()}")
+                else:
+                    st.info(f"Excel: {len(input_df_raw)} filas")
         except Exception as e:
             st.error(f"No pude leer el Excel: {e}")
 
