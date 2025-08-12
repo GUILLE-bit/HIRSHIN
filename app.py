@@ -22,7 +22,7 @@ EMEAC_MIN = 5     # Umbral mínimo por defecto (cambia aquí)
 EMEAC_MAX = 8     # Umbral máximo por defecto (cambia aquí)
 
 # Umbral AJUSTABLE por defecto (editable en CÓDIGO) y opción de forzarlo
-EMEAC_AJUSTABLE_DEF = 6                 # Debe estar entre EMEAC_MIN y EMEAC_MAX
+EMEAC_AJUSTABLE_DEF = 7                 # Debe estar entre EMEAC_MIN y EMEAC_MAX
 FORZAR_AJUSTABLE_DESDE_CODIGO = False   # True = ignora el slider y usa EMEAC_AJUSTABLE_DEF
 
 # ====================== Estado persistente ======================
