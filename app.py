@@ -12,15 +12,17 @@ from meteobahia import (
     preparar_para_modelo,
     usar_fechas_de_input,
     reiniciar_feb_oct,
-    UMBRAL_MIN,
-    UMBRAL_MAX,
 )
 from meteobahia_api import fetch_meteobahia_api_xml  # usa headers tipo navegador
 
 st.set_page_config(page_title="MeteoBahía - EMERREL/EMEAC", layout="wide")
 
+# ====================== UMBRALES EMEAC (EDITABLES EN CÓDIGO) ======================
+EMEAC_MIN = 9    # Cambiá aquí el umbral mínimo por defecto
+EMEAC_MAX = 17   # Cambiá aquí el umbral máximo por defecto
+
 # ====================== Estado persistente ======================
-DEFAULT_API_URL = "https://meteobahia.com.ar/scripts/forecast/for-bd.xml"
+DEFAULT_API_URL  = "https://meteobahia.com.ar/scripts/forecast/for-bd.xml"
 DEFAULT_HIST_URL = "https://raw.githubusercontent.com/GUILLE-bit/HIRSHIN/main/data/historico.xlsx"
 
 if "api_url" not in st.session_state:
@@ -42,8 +44,12 @@ fuente = st.sidebar.radio(
     index=0,
 )
 
+# Umbral ajustable por el usuario (entre los de código)
 umbral_usuario = st.sidebar.slider(
-    "Seleccione el umbral EMEAC (Ajustable)", min_value=UMBRAL_MIN, max_value=UMBRAL_MAX, value=15
+    "Seleccione el umbral EMEAC (Ajustable)",
+    min_value=int(EMEAC_MIN),
+    max_value=int(EMEAC_MAX),
+    value=int(min(max(15, EMEAC_MIN), EMEAC_MAX))
 )
 
 # ============== Helpers =================
@@ -284,41 +290,51 @@ st.caption(f"Última actualización: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%
 
 # ================= Visualización =================
 if not pred_vis.empty:
+    # --- Tabla (rango) con EMEAC ajustable recalculado ---
+    emerrel_rango = pred_vis["EMERREL (0-1)"].to_numpy()
+    cumsum_rango = np.cumsum(emerrel_rango)
+    emeac_ajust = np.clip(cumsum_rango / float(umbral_usuario) * 100.0, 0, 100)
+    emeac_min   = np.clip(cumsum_rango / float(EMEAC_MIN)       * 100.0, 0, 100)
+    emeac_max   = np.clip(cumsum_rango / float(EMEAC_MAX)       * 100.0, 0, 100)
+
     st.subheader("Tabla de Resultados (rango 1-feb → 1-oct)")
-    tabla = pred_vis[["Fecha", "EMERREL (0-1)", "EMEAC (%) - Ajustable (rango)"]].rename(
-        columns={"EMEAC (%) - Ajustable (rango)": "EMEAC (%)"}
-    )
+    tabla = pred_vis[["Fecha", "EMERREL (0-1)"]].copy()
+    tabla["EMEAC (%)"] = emeac_ajust
     st.dataframe(tabla, use_container_width=True)
 
+    # --- EMERREL en rango ---
     st.subheader("EMERREL (0-1) y MA5 en rango 1-feb → 1-oct (reiniciado)")
     def clasif(v): return "Bajo" if v < 0.33 else ("Medio" if v < 0.66 else "Alto")
     pred_vis["Nivel EMERREL (rango)"] = pred_vis["EMERREL (0-1)"].apply(clasif)
     color_map = {"Bajo": "green", "Medio": "yellow", "Alto": "red"}
+
     fig1, ax1 = plt.subplots(figsize=(12, 4))
     ax1.bar(pred_vis["Fecha"], pred_vis["EMERREL (0-1)"],
             color=pred_vis["Nivel EMERREL (rango)"].map(color_map))
-    line_ma5 = ax1.plot(pred_vis["Fecha"], pred_vis["EMERREL_MA5_rango"], linewidth=2.2, label="Media móvil 5 días")[0]
+    # si tu helper agregó la MA5:
+    if "EMERREL_MA5_rango" in pred_vis.columns:
+        line_ma5 = ax1.plot(pred_vis["Fecha"], pred_vis["EMERREL_MA5_rango"], linewidth=2.2, label="Media móvil 5 días")[0]
+        ax1.legend(handles=[Patch(facecolor=color_map[k], label=k) for k in ["Bajo","Medio","Alto"]] + [line_ma5],
+                   loc="upper right")
+    else:
+        ax1.legend(handles=[Patch(facecolor=color_map[k], label=k) for k in ["Bajo","Medio","Alto"]],
+                   loc="upper right")
     ax1.set_ylabel("EMERREL (0-1)")
     ax1.set_title("EMERREL en rango 1-feb → 1-oct (acumulados reiniciados)")
     ax1.tick_params(axis='x', rotation=45)
-    ax1.legend(handles=[Patch(facecolor=color_map[k], label=k) for k in ["Bajo","Medio","Alto"]] + [line_ma5],
-               loc="upper right")
     st.pyplot(fig1); plt.close(fig1)
 
-    st.markdown("**Umbrales definidos en el código:**")
-    st.markdown(f"🔵 Min: {UMBRAL_MIN} &nbsp;&nbsp; 🔴 Max: {UMBRAL_MAX}")
-    st.subheader("EMEAC (%) (rango 1-feb → 1-oct)")
+    # --- EMEAC en rango con umbrales de CÓDIGO + ajustable ---
+    st.markdown("**Umbrales definidos:**")
+    st.markdown(f"🔵 Umbral mínimo (código): {EMEAC_MIN} &nbsp;&nbsp;&nbsp;&nbsp; 🔴 Umbral máximo (código): {EMEAC_MAX}")
+    st.subheader("EMEAC (%) (rango 1-feb → 1-oct) con área sombreada entre Min y Max")
 
-    x = pred_vis["Fecha"]
-    y_adj = pred_vis["EMEAC (%) - Ajustable (rango)"].astype(float).to_numpy()
-    y_min = pred_vis["EMEAC (%) - Min (rango)"].astype(float).to_numpy()
-    y_max = pred_vis["EMEAC (%) - Max (rango)"].astype(float).to_numpy()
-
+    x = pd.to_datetime(pred_vis["Fecha"])
     fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(x, y_adj, label=f"Ajustable ({umbral_usuario})", linewidth=2)
-    ax.plot(x, y_min, label=f"Min ({UMBRAL_MIN})", linestyle="--", linewidth=2)
-    ax.plot(x, y_max, label=f"Max ({UMBRAL_MAX})", linestyle="--", linewidth=2)
-    ax.fill_between(x, y_min, y_max, alpha=0.3, label="Área entre Min y Max")
+    ax.plot(x, emeac_ajust, label=f"Ajustable ({umbral_usuario})", linewidth=2)
+    ax.plot(x, emeac_min,   label=f"Min ({EMEAC_MIN})", linestyle="--", linewidth=2)
+    ax.plot(x, emeac_max,   label=f"Max ({EMEAC_MAX})", linestyle="--", linewidth=2)
+    ax.fill_between(x, emeac_min, emeac_max, alpha=0.3, label="Área entre Min y Max")
     ax.set_ylabel("EMEAC (%)")
     ax.set_ylim(0, 105)
     ax.legend()
@@ -353,4 +369,3 @@ else:
     ax.legend()
     ax.grid(True)
     st.pyplot(fig); plt.close(fig)
-
