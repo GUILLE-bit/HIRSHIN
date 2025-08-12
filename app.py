@@ -18,8 +18,12 @@ from meteobahia_api import fetch_meteobahia_api_xml  # usa headers tipo navegado
 st.set_page_config(page_title="MeteoBahía - EMERREL/EMEAC", layout="wide")
 
 # ====================== UMBRALES EMEAC (EDITABLES EN CÓDIGO) ======================
-EMEAC_MIN = 5    # Cambiá aquí el umbral mínimo por defecto
-EMEAC_MAX = 8   # Cambiá aquí el umbral máximo por defecto
+EMEAC_MIN = 5     # Umbral mínimo por defecto (cambia aquí)
+EMEAC_MAX = 8     # Umbral máximo por defecto (cambia aquí)
+
+# Umbral AJUSTABLE por defecto (editable en CÓDIGO) y opción de forzarlo
+EMEAC_AJUSTABLE_DEF = 6                 # Debe estar entre EMEAC_MIN y EMEAC_MAX
+FORZAR_AJUSTABLE_DESDE_CODIGO = False   # True = ignora el slider y usa EMEAC_AJUSTABLE_DEF
 
 # ====================== Estado persistente ======================
 DEFAULT_API_URL  = "https://meteobahia.com.ar/scripts/forecast/for-bd.xml"
@@ -44,13 +48,24 @@ fuente = st.sidebar.radio(
     index=0,
 )
 
-# Umbral ajustable por el usuario (entre los de código)
-umbral_usuario = st.sidebar.slider(
+# Umbral ajustable: UI y/o código
+usar_codigo = st.sidebar.checkbox(
+    "Usar umbral ajustable desde CÓDIGO",
+    value=FORZAR_AJUSTABLE_DESDE_CODIGO
+)
+
+umbral_slider = st.sidebar.slider(
     "Seleccione el umbral EMEAC (Ajustable)",
     min_value=int(EMEAC_MIN),
     max_value=int(EMEAC_MAX),
-    value=int(min(max(15, EMEAC_MIN), EMEAC_MAX))
+    value=int(np.clip(EMEAC_AJUSTABLE_DEF, EMEAC_MIN, EMEAC_MAX))  # arranca en el valor de código
 )
+
+# Umbral efectivo que usa la app
+umbral_usuario = int(np.clip(
+    EMEAC_AJUSTABLE_DEF if usar_codigo else umbral_slider,
+    EMEAC_MIN, EMEAC_MAX
+))
 
 # ============== Helpers =================
 @st.cache_data(ttl=600)
@@ -287,6 +302,7 @@ pred_vis = reiniciar_feb_oct(resultado[["Fecha", "EMERREL (0-1)"]].copy(), umbra
 # Sello y fuente
 st.caption(f"Fuente de datos: {source_label}")
 st.caption(f"Última actualización: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.caption(f"Umbral EMEAC usado: {umbral_usuario}" + (" (forzado desde código)" if usar_codigo else ""))
 
 # ================= Visualización =================
 if not pred_vis.empty:
@@ -304,6 +320,7 @@ if not pred_vis.empty:
 
     # --- EMERREL en rango ---
     st.subheader("EMERREL (0-1) y MA5 en rango 1-feb → 1-oct (reiniciado)")
+    # NOTA: aquí usás cortes 0.2/0.4; si preferís 0.33/0.66, cambialos
     def clasif(v): return "Bajo" if v < 0.2 else ("Medio" if v < 0.4 else "Alto")
     pred_vis["Nivel EMERREL (rango)"] = pred_vis["EMERREL (0-1)"].apply(clasif)
     color_map = {"Bajo": "green", "Medio": "yellow", "Alto": "red"}
@@ -311,7 +328,6 @@ if not pred_vis.empty:
     fig1, ax1 = plt.subplots(figsize=(12, 4))
     ax1.bar(pred_vis["Fecha"], pred_vis["EMERREL (0-1)"],
             color=pred_vis["Nivel EMERREL (rango)"].map(color_map))
-    # si tu helper agregó la MA5:
     if "EMERREL_MA5_rango" in pred_vis.columns:
         line_ma5 = ax1.plot(pred_vis["Fecha"], pred_vis["EMERREL_MA5_rango"], linewidth=2.2, label="Media móvil 5 días")[0]
         ax1.legend(handles=[Patch(facecolor=color_map[k], label=k) for k in ["Bajo","Medio","Alto"]] + [line_ma5],
@@ -369,3 +385,4 @@ else:
     ax.legend()
     ax.grid(True)
     st.pyplot(fig); plt.close(fig)
+
