@@ -17,7 +17,13 @@ from meteobahia_api import fetch_meteobahia_api_xml
 
 st.set_page_config(page_title="MeteoBahía - EMERREL/EMEAC", layout="wide")
 
-# ================= Sidebar: selección de fuente =================
+# ====================== Estado inicial (URL/TOKEN recordados) ======================
+if "api_url" not in st.session_state:
+    st.session_state.api_url = "https://meteobahia.com.ar/scripts/forecast/for-bd.xml"
+if "api_token" not in st.session_state:
+    st.session_state.api_token = ""
+
+# ================= Sidebar: selección de fuente y opciones =================
 st.sidebar.header("Fuente de datos")
 fuente = st.sidebar.radio(
     "Elegí cómo cargar datos",
@@ -29,6 +35,16 @@ umbral_usuario = st.sidebar.slider(
     "Seleccione el umbral EMEAC (Ajustable)",
     min_value=UMBRAL_MIN, max_value=UMBRAL_MAX, value=15
 )
+
+# =================== Cache de descarga API (evita re-llamadas) ===================
+@st.cache_data(ttl=600)
+def _fetch_api_cached(url: str, token: str | None):
+    return fetch_meteobahia_api_xml(url.strip(), token=token or None)
+
+# ================= Botón de actualización dura (limpia caché y rerun) ==============
+def _forzar_actualizacion():
+    _fetch_api_cached.clear()   # limpia solo la caché de esta función
+    st.rerun()
 
 st.title("MeteoBahía · EMERREL y EMEAC (rango 1-feb → 1-oct)")
 
@@ -47,21 +63,39 @@ if fuente == "Subir Excel":
 
 elif fuente == "API MeteoBahía (XML)":
     st.sidebar.subheader("Configuración API XML")
-    api_url = st.sidebar.text_input(
-        "URL completa del XML",
-        value="https://TU_API/endpoint.xml",  # ← reemplazá por tu endpoint real
-        help="Pega aquí la URL que devuelve el XML como el ejemplo adjunto."
-    )
-    token = st.sidebar.text_input("Bearer token (opcional)", value="", type="password")
-    btn_api = st.sidebar.button("Descargar desde API (XML)")
 
-    if btn_api:
+    # Campos persistentes en session_state
+    st.session_state.api_url = st.sidebar.text_input(
+        "URL completa del XML",
+        key="api_url",
+        help="URL que devuelve el XML (la app descarga automáticamente)."
+    )
+    st.session_state.api_token = st.sidebar.text_input(
+        "Bearer token (opcional)",
+        key="api_token",
+        type="password"
+    )
+
+    # Botón de actualización dura
+    st.sidebar.button("Actualizar ahora (forzar recarga)", on_click=_forzar_actualizacion)
+
+    # Descarga automática cuando hay URL válida
+    api_url = st.session_state.api_url or ""
+    token = st.session_state.api_token or ""
+
+    if api_url.strip():
         try:
-            df_api = fetch_meteobahia_api_xml(api_url, token=token or None)
-            input_df_raw = df_api.copy()
-            source_label = f"API (XML): {api_url}"
+            with st.spinner("Descargando desde API (XML)…"):
+                df_api = _fetch_api_cached(api_url, token)
+            if df_api is None or df_api.empty:
+                st.warning("La API respondió sin datos o con XML vacío.")
+            else:
+                input_df_raw = df_api.copy()
+                source_label = f"API (XML): {api_url}"
         except Exception as e:
             st.error(f"Error llamando a la API XML: {e}")
+    else:
+        st.info("Ingresá la URL real del XML para iniciar la descarga automática.")
 
 # Si no hay datos aún, avisar y salir
 if input_df_raw is None or input_df_raw.empty:
@@ -153,3 +187,6 @@ else:
     ax.grid(True)
     st.pyplot(fig)
 
+# ================= Tabla completa del modelo (sin reinicio) =================
+st.subheader("Tabla completa (salida del modelo, sin reinicio)")
+st.dataframe(resultado[["Fecha", "Nivel EMERREL", "EMEAC (%)"]], use_container_width=True)
