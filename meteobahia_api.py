@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # meteobahia_api.py
 from __future__ import annotations
 import pandas as pd
@@ -12,10 +11,6 @@ def _get_attr_or_text(elem, attr="value"):
     return v if v is not None else (elem.text or None)
 
 def parse_meteobahia_xml(xml_text: str) -> pd.DataFrame:
-    """
-    Parseo del XML de pronóstico diario (formato como el que adjuntaste).
-    Extrae: fecha, tmax, tmin, precip.
-    """
     root = ET.fromstring(xml_text)
     days = root.findall(".//tabular/day")
     rows = []
@@ -38,12 +33,43 @@ def parse_meteobahia_xml(xml_text: str) -> pd.DataFrame:
     df["Julian_days"] = df["Fecha"].dt.dayofyear
     return df[["Fecha","Julian_days","TMAX","TMIN","Prec"]]
 
-def fetch_meteobahia_api_xml(url: str, *, token: str | None = None, timeout: int = 20, params: dict | None = None) -> pd.DataFrame:
+def fetch_meteobahia_api_xml(
+    url: str,
+    *,
+    token: str | None = None,
+    timeout: int = 20,
+    params: dict | None = None,
+    use_browser_headers: bool = True,
+) -> pd.DataFrame:
     """
-    Descarga el XML desde 'url' y devuelve DataFrame normalizado.
-    'token' opcional (Authorization: Bearer ...).
+    Descarga el XML y lo parsea. Envía headers 'de navegador' para evitar 403.
     """
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    r = requests.get(url, headers=headers, params=params or {}, timeout=timeout)
+    headers = {}
+    if use_browser_headers:
+        headers.update({
+            "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                           "AppleWebKit/537.36 (KHTML, like Gecko) "
+                           "Chrome/126.0.0.0 Safari/537.36"),
+            "Referer": "https://meteobahia.com.ar/",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        })
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    # Primer intento
+    r = requests.get(url, headers=headers, params=params or {}, timeout=timeout, allow_redirects=True)
+    if r.status_code == 403 and not use_browser_headers:
+        # Reintento con headers de navegador si no se usaron
+        headers.update({
+            "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                           "AppleWebKit/537.36 (KHTML, like Gecko) "
+                           "Chrome/126.0.0.0 Safari/537.36"),
+            "Referer": "https://meteobahia.com.ar/",
+        })
+        r = requests.get(url, headers=headers, params=params or {}, timeout=timeout, allow_redirects=True)
+
     r.raise_for_status()
     return parse_meteobahia_xml(r.text)
