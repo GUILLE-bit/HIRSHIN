@@ -304,7 +304,7 @@ if not pred_vis.empty:
 
     # --- EMERREL en rango ---
     st.subheader("EMERREL (0-1) y MA5 en rango 1-feb → 1-oct (reiniciado)")
-    def clasif(v): return "Bajo" if v < 0.33 else ("Medio" if v < 0.66 else "Alto")
+    def clasif(v): return "Bajo" if v < 0.2 else ("Medio" if v < 0.4 else "Alto")
     pred_vis["Nivel EMERREL (rango)"] = pred_vis["EMERREL (0-1)"].apply(clasif)
     color_map = {"Bajo": "green", "Medio": "yellow", "Alto": "red"}
 
