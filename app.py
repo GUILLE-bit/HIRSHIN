@@ -375,7 +375,7 @@ if not pred_vis.empty:
     st.pyplot(fig2); plt.close(fig2)
 
     # --- Tabla (después de ambos gráficos) ---
-     pred_vis["Día juliano"] = pd.to_datetime(pred_vis["Fecha"]).dt.dayofyear
+    pred_vis["Día juliano"] = pd.to_datetime(pred_vis["Fecha"]).dt.dayofyear
     tabla = pd.DataFrame({
         "Fecha": pred_vis["Fecha"],
         "Día juliano": pred_vis["Día juliano"].astype(int),
