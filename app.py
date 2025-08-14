@@ -18,7 +18,7 @@ from meteobahia_api import fetch_meteobahia_api_xml  # usa headers tipo navegado
 st.set_page_config(page_title="PREDICCION EMERGENCIA AGRICOLA HIRSHIN", layout="wide")
 
 # ====================== UMBRALES EMEAC (EDITABLES EN CÓDIGO) ======================
-EMEAC_MIN = 5     # Umbral mínimo por defecto (cambia aquí)
+EMEAC_MIN = 6     # Umbral mínimo por defecto (cambia aquí)
 EMEAC_MAX = 8     # Umbral máximo por defecto (cambia aquí)
 
 # Umbral AJUSTABLE por defecto (editable en CÓDIGO) y opción de forzarlo
