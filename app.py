@@ -380,6 +380,7 @@ if not pred_vis.empty:
         "Fecha": pred_vis["Fecha"],
         "Día juliano": pred_vis["Día juliano"].astype(int),
         "Nivel de EMERREL": pred_vis["Nivel de EMERREL"],
+         nivel_icono = {"Bajo": "🟢 Bajo", "Medio": "🟠 Medio", "Alto": "🔴 Alto"}
         "EMEAC (%)": emeac_ajust
     })
     st.subheader("Tabla de Resultados (rango 1-feb → 1-oct)")
