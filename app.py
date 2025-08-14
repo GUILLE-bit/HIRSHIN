@@ -15,6 +15,13 @@ from meteobahia import (
 )
 from meteobahia_api import fetch_meteobahia_api_xml  # usa headers tipo navegador
 
+# ==== Plotly (opcional) ====
+try:
+    import plotly.graph_objects as go
+    PLOTLY_OK = True
+except Exception:
+    PLOTLY_OK = False
+
 st.set_page_config(page_title="PREDICCION EMERGENCIA AGRICOLA HIRSHIN", layout="wide")
 
 # ====================== UMBRALES EMEAC (EDITABLES EN CÓDIGO) ======================
@@ -315,67 +322,161 @@ if not pred_vis.empty:
     def clasif(v): return "Bajo" if v < 0.2 else ("Medio" if v < 0.4 else "Alto")
     pred_vis["Nivel de EMERREL"] = pred_vis["EMERREL (0-1)"].apply(clasif)
 
-    # --- Gráfico 1: EMERREL (barras + MA5) ---
-    color_map = {"Bajo": "green", "Medio": "yellow", "Alto": "red"}
-    fig1, ax1 = plt.subplots(figsize=(12, 4))
+    # === Plot con Plotly si está disponible ===
+    if PLOTLY_OK:
+        color_map = {"Bajo": "green", "Medio": "yellow", "Alto": "red"}
 
-    # Área cerrada desde 0 hasta la MA5 (celeste claro), debajo de las barras
-    ax1.fill_between(
-        pred_vis["Fecha"],
-        0,
-        pred_vis["EMERREL_MA5_rango"],
-        color="skyblue",
-        alpha=0.3,
-        zorder=0
-    )
+        # ---------- Gráfico 1: EMERREL ----------
+        st.subheader("EMERGENCIA RELATIVA DIARIA")
+        fig1 = go.Figure()
 
-    # Barras por nivel de EMERREL
-    ax1.bar(
-        pred_vis["Fecha"],
-        pred_vis["EMERREL (0-1)"],
-        color=pred_vis["Nivel de EMERREL"].map(color_map)
-    )
+        # Barras por nivel
+        fig1.add_bar(
+            x=pred_vis["Fecha"],
+            y=pred_vis["EMERREL (0-1)"],
+            marker=dict(color=pred_vis["Nivel de EMERREL"].map(color_map).tolist()),
+            customdata=pred_vis["Nivel de EMERREL"],
+            hovertemplate="Fecha: %{x|%d-%b-%Y}<br>EMERREL: %{y:.3f}<br>Nivel: %{customdata}<extra></extra>",
+            name="EMERREL (0-1)",
+        )
+        # Línea MA5
+        fig1.add_trace(go.Scatter(
+            x=pred_vis["Fecha"], y=pred_vis["EMERREL_MA5_rango"],
+            mode="lines", name="Media móvil 5 días",
+            hovertemplate="Fecha: %{x|%d-%b-%Y}<br>MA5: %{y:.3f}<extra></extra>"
+        ))
+        # Área celeste claro bajo MA5
+        fig1.add_trace(go.Scatter(
+            x=pred_vis["Fecha"], y=pred_vis["EMERREL_MA5_rango"],
+            mode="lines", line=dict(width=0),
+            fill="tozeroy", fillcolor="rgba(135, 206, 250, 0.3)",
+            name="Área MA5", hoverinfo="skip", showlegend=False
+        ))
 
-    # Línea de media móvil
-    line_ma5 = ax1.plot(
-        pred_vis["Fecha"],
-        pred_vis["EMERREL_MA5_rango"],
-        linewidth=2.2,
-        label="Media móvil 5 días"
-    )[0]
+        fig1.update_layout(
+            xaxis_title="Fecha", yaxis_title="EMERREL (0-1)",
+            title="EMERGENCIA RELATIVA DIARIA",
+            hovermode="x unified",
+            legend_title="Referencias",
+            height=650
+        )
+        st.plotly_chart(fig1, use_container_width=True, theme="streamlit")
 
-    ax1.set_ylabel("EMERREL (0-1)")
-    ax1.set_title("EMERGENCIA RELATIVA DIARIA")
-    ax1.tick_params(axis='x', rotation=45)
-    ax1.legend(
-        handles=[Patch(facecolor=color_map[k], label=k) for k in ["Bajo","Medio","Alto"]] + [line_ma5],
-        loc="upper right"
-    )
-    ax1.grid(True)
-    st.pyplot(fig1); plt.close(fig1)
+        # ---------- Gráfico 2: EMEAC ----------
+        emerrel_rango = pred_vis["EMERREL (0-1)"].to_numpy()
+        cumsum_rango = np.cumsum(emerrel_rango)
+        emeac_ajust = np.clip(cumsum_rango / float(umbral_usuario) * 100.0, 0, 100)
+        emeac_min   = np.clip(cumsum_rango / float(EMEAC_MIN)       * 100.0, 0, 100)
+        emeac_max   = np.clip(cumsum_rango / float(EMEAC_MAX)       * 100.0, 0, 100)
 
-    # --- Gráfico 2: EMEAC (%) con umbrales de código + ajustable ---
-    emerrel_rango = pred_vis["EMERREL (0-1)"].to_numpy()
-    cumsum_rango = np.cumsum(emerrel_rango)
-    emeac_ajust = np.clip(cumsum_rango / float(umbral_usuario) * 100.0, 0, 100)
-    emeac_min   = np.clip(cumsum_rango / float(EMEAC_MIN)       * 100.0, 0, 100)
-    emeac_max   = np.clip(cumsum_rango / float(EMEAC_MAX)       * 100.0, 0, 100)
+        st.subheader("EMERGENCIA ACUMULADA DIARIA")
+        st.markdown(f"**Umbrales:** Min={EMEAC_MIN} · Max={EMEAC_MAX} · Ajustable={umbral_usuario}")
 
-    st.subheader("EMERGENCIA ACUMULADA DIARIA")
-    st.markdown(f"**Umbrales:** Min={EMEAC_MIN} · Max={EMEAC_MAX} · Ajustable={umbral_usuario}")
-    fig2, ax2 = plt.subplots(figsize=(12, 5))
-    ax2.plot(pred_vis["Fecha"], emeac_ajust, label=f"Ajustable ({umbral_usuario})", linewidth=2)
-    ax2.plot(pred_vis["Fecha"], emeac_min,   label=f"Min ({EMEAC_MIN})", linestyle="--", linewidth=2)
-    ax2.plot(pred_vis["Fecha"], emeac_max,   label=f"Max ({EMEAC_MAX})", linestyle="--", linewidth=2)
-    ax2.fill_between(pred_vis["Fecha"], emeac_min, emeac_max, alpha=0.3, label="Área entre Min y Max")
-    ax2.set_ylabel("EMEAC (%)")
-    ax2.set_ylim(0, 105)
-    ax2.legend()
-    ax2.grid(True)
-    st.pyplot(fig2); plt.close(fig2)
+        fig2 = go.Figure()
+        # Banda min–max
+        fig2.add_trace(go.Scatter(
+            x=pred_vis["Fecha"], y=emeac_max,
+            mode="lines", line=dict(width=0),
+            name="Máximo", hovertemplate="Fecha: %{x|%d-%b-%Y}<br>Máximo: %{y:.1f}%<extra></extra>"
+        ))
+        fig2.add_trace(go.Scatter(
+            x=pred_vis["Fecha"], y=emeac_min,
+            mode="lines", line=dict(width=0),
+            fill="tonexty", name="Mínimo",
+            hovertemplate="Fecha: %{x|%d-%b-%Y}<br>Mínimo: %{y:.1f}%<extra></extra>"
+        ))
+        # Líneas umbrales
+        fig2.add_trace(go.Scatter(
+            x=pred_vis["Fecha"], y=emeac_ajust,
+            mode="lines", name=f"Ajustable ({umbral_usuario})",
+            line=dict(width=2.5),
+            hovertemplate="Fecha: %{x|%d-%b-%Y}<br>Ajustable: %{y:.1f}%<extra></extra>"
+        ))
+        fig2.add_trace(go.Scatter(
+            x=pred_vis["Fecha"], y=emeac_min,
+            mode="lines", name=f"Min ({EMEAC_MIN})",
+            line=dict(dash="dash", width=1.5),
+            hovertemplate="Fecha: %{x|%d-%b-%Y}<br>Mínimo: %{y:.1f}%<extra></extra>"
+        ))
+        fig2.add_trace(go.Scatter(
+            x=pred_vis["Fecha"], y=emeac_max,
+            mode="lines", name=f"Max ({EMEAC_MAX})",
+            line=dict(dash="dash", width=1.5),
+            hovertemplate="Fecha: %{x|%d-%b-%Y}<br>Máximo: %{y:.1f}%<extra></extra>"
+        ))
+        # Líneas horizontales 25/50/75/90
+        for nivel in [25, 50, 75, 90]:
+            fig2.add_hline(y=nivel, line_dash="dash", opacity=0.6, annotation_text=f"{nivel}%")
+
+        fig2.update_layout(
+            xaxis_title="Fecha", yaxis_title="EMEAC (%)",
+            title="EMERGENCIA ACUMULADA DIARIA",
+            hovermode="x unified",
+            legend_title="Referencias",
+            yaxis=dict(range=[0, 100]),
+            height=600
+        )
+        st.plotly_chart(fig2, use_container_width=True, theme="streamlit")
+
+    else:
+        # === Fallback Matplotlib (como tu versión) ===
+        # --- Gráfico 1: EMERREL (barras + MA5) ---
+        color_map = {"Bajo": "green", "Medio": "yellow", "Alto": "red"}
+        fig1, ax1 = plt.subplots(figsize=(12, 4))
+
+        # Área celeste claro bajo MA5
+        ax1.fill_between(
+            pred_vis["Fecha"], 0, pred_vis["EMERREL_MA5_rango"],
+            color="skyblue", alpha=0.3, zorder=0
+        )
+        # Barras
+        ax1.bar(
+            pred_vis["Fecha"], pred_vis["EMERREL (0-1)"],
+            color=pred_vis["Nivel de EMERREL"].map(color_map)
+        )
+        # Línea MA5
+        line_ma5 = ax1.plot(
+            pred_vis["Fecha"], pred_vis["EMERREL_MA5_rango"],
+            linewidth=2.2, label="Media móvil 5 días"
+        )[0]
+
+        ax1.set_ylabel("EMERREL (0-1)")
+        ax1.set_title("EMERGENCIA RELATIVA DIARIA")
+        ax1.tick_params(axis='x', rotation=45)
+        ax1.legend(
+            handles=[Patch(facecolor=color_map[k], label=k) for k in ["Bajo","Medio","Alto"]] + [line_ma5],
+            loc="upper right"
+        )
+        ax1.grid(True)
+        st.pyplot(fig1); plt.close(fig1)
+
+        # --- Gráfico 2: EMEAC (%) ---
+        emerrel_rango = pred_vis["EMERREL (0-1)"].to_numpy()
+        cumsum_rango = np.cumsum(emerrel_rango)
+        emeac_ajust = np.clip(cumsum_rango / float(umbral_usuario) * 100.0, 0, 100)
+        emeac_min   = np.clip(cumsum_rango / float(EMEAC_MIN)       * 100.0, 0, 100)
+        emeac_max   = np.clip(cumsum_rango / float(EMEAC_MAX)       * 100.0, 0, 100)
+
+        st.subheader("EMERGENCIA ACUMULADA DIARIA")
+        st.markdown(f"**Umbrales:** Min={EMEAC_MIN} · Max={EMEAC_MAX} · Ajustable={umbral_usuario}")
+        fig2, ax2 = plt.subplots(figsize=(12, 5))
+        ax2.plot(pred_vis["Fecha"], emeac_ajust, label=f"Ajustable ({umbral_usuario})", linewidth=2)
+        ax2.plot(pred_vis["Fecha"], emeac_min,   label=f"Min ({EMEAC_MIN})", linestyle="--", linewidth=2)
+        ax2.plot(pred_vis["Fecha"], emeac_max,   label=f"Max ({EMEAC_MAX})", linestyle="--", linewidth=2)
+        ax2.fill_between(pred_vis["Fecha"], emeac_min, emeac_max, alpha=0.3, label="Área entre Min y Max")
+        ax2.set_ylabel("EMEAC (%)")
+        ax2.set_ylim(0, 105)
+        ax2.legend()
+        ax2.grid(True)
+        st.pyplot(fig2); plt.close(fig2)
 
     # --- Tabla (después de ambos gráficos) ---
     pred_vis["Día juliano"] = pd.to_datetime(pred_vis["Fecha"]).dt.dayofyear
+    # Nota: emeac_ajust está definido en ambos caminos (Plotly/Matplotlib)
+    if 'emeac_ajust' not in locals():
+        emerrel_rango = pred_vis["EMERREL (0-1)"].to_numpy()
+        emeac_ajust = np.clip(np.cumsum(emerrel_rango) / float(umbral_usuario) * 100.0, 0, 100)
+
     tabla = pd.DataFrame({
         "Fecha": pred_vis["Fecha"],
         "Día juliano": pred_vis["Día juliano"].astype(int),
@@ -395,4 +496,3 @@ if not pred_vis.empty:
     )
 else:
     st.warning("No hay datos en el rango 1-feb → 1-oct para el año detectado.")
-
