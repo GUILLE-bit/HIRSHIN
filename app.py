@@ -318,14 +318,40 @@ if not pred_vis.empty:
     # --- Gráfico 1: EMERREL (barras + MA5) ---
     color_map = {"Bajo": "green", "Medio": "yellow", "Alto": "red"}
     fig1, ax1 = plt.subplots(figsize=(12, 4))
-    ax1.bar(pred_vis["Fecha"], pred_vis["EMERREL (0-1)"],
-            color=pred_vis["Nivel de EMERREL"].map(color_map))
-    line_ma5 = ax1.plot(pred_vis["Fecha"], pred_vis["EMERREL_MA5_rango"], linewidth=2.2, label="Media móvil 5 días")[0]
+
+    # Área cerrada desde 0 hasta la MA5 (celeste claro), debajo de las barras
+    ax1.fill_between(
+        pred_vis["Fecha"],
+        0,
+        pred_vis["EMERREL_MA5_rango"],
+        color="skyblue",
+        alpha=0.3,
+        zorder=0
+    )
+
+    # Barras por nivel de EMERREL
+    ax1.bar(
+        pred_vis["Fecha"],
+        pred_vis["EMERREL (0-1)"],
+        color=pred_vis["Nivel de EMERREL"].map(color_map)
+    )
+
+    # Línea de media móvil
+    line_ma5 = ax1.plot(
+        pred_vis["Fecha"],
+        pred_vis["EMERREL_MA5_rango"],
+        linewidth=2.2,
+        label="Media móvil 5 días"
+    )[0]
+
     ax1.set_ylabel("EMERREL (0-1)")
     ax1.set_title("EMERGENCIA RELATIVA DIARIA")
     ax1.tick_params(axis='x', rotation=45)
-    ax1.legend(handles=[Patch(facecolor=color_map[k], label=k) for k in ["Bajo","Medio","Alto"]] + [line_ma5],
-               loc="upper right")
+    ax1.legend(
+        handles=[Patch(facecolor=color_map[k], label=k) for k in ["Bajo","Medio","Alto"]] + [line_ma5],
+        loc="upper right"
+    )
+    ax1.grid(True)
     st.pyplot(fig1); plt.close(fig1)
 
     # --- Gráfico 2: EMEAC (%) con umbrales de código + ajustable ---
