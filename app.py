@@ -15,7 +15,7 @@ from meteobahia import (
 )
 from meteobahia_api import fetch_meteobahia_api_xml  # usa headers tipo navegador
 
-st.set_page_config(page_title="PREDICCION EMERGENCIA AGRICOLA LOLIUM SP", layout="wide")
+st.set_page_config(page_title="PREDICCION EMERGENCIA AGRICOLA HIRSHIN", layout="wide")
 
 # ====================== UMBRALES EMEAC (EDITABLES EN CÓDIGO) ======================
 EMEAC_MIN = 5     # Umbral mínimo por defecto (cambia aquí)
@@ -172,7 +172,7 @@ def read_hist_from_url(url: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 # ================= Flujo principal =================
-st.title("PREDICCION EMERGENCIA AGRICOLA LOLIUM SP")
+st.title("PREDICCION EMERGENCIA AGRICOLA HIRSHIN")
 
 input_df_raw = None
 source_label = None
