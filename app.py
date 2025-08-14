@@ -375,16 +375,13 @@ if not pred_vis.empty:
     st.pyplot(fig2); plt.close(fig2)
 
     # --- Tabla (después de ambos gráficos) ---
-    pred_vis["Día juliano"] = pd.to_datetime(pred_vis["Fecha"]).dt.dayofyear
-    tabla = pd.DataFrame({
-        "Fecha": pred_vis["Fecha"],
-        "Día juliano": pred_vis["Día juliano"].astype(int),
-        "Nivel de EMERREL": pred_vis["Nivel de EMERREL"],
-        "nivel_icono" = {"Bajo": "🟢 Bajo", "Medio": "🟠 Medio", "Alto": "🔴 Alto"}
-        "EMEAC (%)": emeac_ajust
-    })
-    st.subheader("Tabla de Resultados (rango 1-feb → 1-oct)")
-    st.dataframe(tabla, use_container_width=True)
+    st.subheader(f"Resultados (1/feb → 1/nov) - {nombre}")
+        col_emeac = "EMEAC (%) - ajustable (rango)"
+        nivel_icono = {"Bajo": "🟢 Bajo", "Medio": "🟠 Medio", "Alto": "🔴 Alto"}
+        tabla = pred_vis[["Fecha","Julian_days","Nivel_Emergencia_relativa",col_emeac]].copy()
+        tabla["Nivel_Emergencia_relativa"] = tabla["Nivel_Emergencia_relativa"].map(nivel_icono)
+        tabla = tabla.rename(columns={"Nivel_Emergencia_relativa":"Nivel de EMERREL", col_emeac:"EMEAC (%)"})
+        st.dataframe(tabla, use_container_width=True)
 
     # Descarga CSV de la tabla del rango
     csv_rango = tabla.to_csv(index=False).encode("utf-8")
