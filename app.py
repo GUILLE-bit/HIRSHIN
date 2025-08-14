@@ -185,7 +185,7 @@ input_df_raw = None
 source_label = None
 
 if fuente == "API + Histórico":
-    # Pronóstico API
+    # Pronóstico (API XML)
     st.sidebar.subheader("Pronóstico (API XML)")
     st.sidebar.text_input("URL XML", key="api_url", help="Endpoint (hoy → +12 días).")
     st.sidebar.text_input("Bearer token (opcional)", key="api_token", type="password")
@@ -353,6 +353,26 @@ if not pred_vis.empty:
             name="Área MA5", hoverinfo="skip", showlegend=False
         ))
 
+        # Líneas de referencia (0.2 y 0.4) + leyenda de niveles
+        y_low, y_med = 0.2, 0.4
+        x0, x1 = pred_vis["Fecha"].min(), pred_vis["Fecha"].max()
+        fig1.add_trace(go.Scatter(
+            x=[x0, x1], y=[y_low, y_low],
+            mode="lines", line=dict(color="green", dash="dot"),
+            name=f"Nivel Bajo (≤ {y_low:.2f})", hoverinfo="skip"
+        ))
+        fig1.add_trace(go.Scatter(
+            x=[x0, x1], y=[y_med, y_med],
+            mode="lines", line=dict(color="orange", dash="dot"),
+            name=f"Nivel Medio (≤ {y_med:.2f})", hoverinfo="skip"
+        ))
+        # Entrada de leyenda para Alto (sin línea fija)
+        fig1.add_trace(go.Scatter(
+            x=[None], y=[None], mode="lines",
+            line=dict(color="red", dash="dot"),
+            name=f"Nivel Alto (> {y_med:.2f})", hoverinfo="skip"
+        ))
+
         fig1.update_layout(
             xaxis_title="Fecha", yaxis_title="EMERREL (0-1)",
             title="EMERGENCIA RELATIVA DIARIA",
@@ -496,3 +516,4 @@ if not pred_vis.empty:
     )
 else:
     st.warning("No hay datos en el rango 1-feb → 1-oct para el año detectado.")
+
