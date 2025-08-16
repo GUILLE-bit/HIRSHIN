@@ -327,7 +327,7 @@ if not pred_vis.empty:
         color_map = {"Bajo": "green", "Medio": "yellow", "Alto": "red"}
 
         # ---------- Gráfico 1: EMERREL ----------
-        st.subheader("EMERGENCIA RELATIVA DIARIA")
+        st.subheader("EMERGENCIA RELATIVA DIARIA - BORDENAVE")
         fig1 = go.Figure()
 
         # Barras por nivel
@@ -375,7 +375,7 @@ if not pred_vis.empty:
 
         fig1.update_layout(
             xaxis_title="Fecha", yaxis_title="EMERREL (0-1)",
-            title="EMERGENCIA RELATIVA DIARIA",
+            # title="EMERGENCIA RELATIVA DIARIA",
             hovermode="x unified",
             legend_title="Referencias",
             height=650
@@ -389,7 +389,7 @@ if not pred_vis.empty:
         emeac_min   = np.clip(cumsum_rango / float(EMEAC_MIN)       * 100.0, 0, 100)
         emeac_max   = np.clip(cumsum_rango / float(EMEAC_MAX)       * 100.0, 0, 100)
 
-        st.subheader("EMERGENCIA ACUMULADA DIARIA")
+        st.subheader("EMERGENCIA ACUMULADA DIARIA - BORDENAVE")
         st.markdown(f"**Umbrales:** Min={EMEAC_MIN} · Max={EMEAC_MAX} · Ajustable={umbral_usuario}")
 
         fig2 = go.Figure()
@@ -430,7 +430,7 @@ if not pred_vis.empty:
 
         fig2.update_layout(
             xaxis_title="Fecha", yaxis_title="EMEAC (%)",
-            title="EMERGENCIA ACUMULADA DIARIA",
+            # title="EMERGENCIA ACUMULADA DIARIA",
             hovermode="x unified",
             legend_title="Referencias",
             yaxis=dict(range=[0, 100]),
