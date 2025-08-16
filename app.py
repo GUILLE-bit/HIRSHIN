@@ -25,11 +25,11 @@ except Exception:
 st.set_page_config(page_title="PREDICCION EMERGENCIA AGRICOLA HIRSHIN", layout="wide")
 
 # ====================== UMBRALES EMEAC (EDITABLES EN CÓDIGO) ======================
-EMEAC_MIN = 8     # Umbral mínimo por defecto (cambia aquí)
-EMEAC_MAX = 10     # Umbral máximo por defecto (cambia aquí)
+EMEAC_MIN = 6     # Umbral mínimo por defecto (cambia aquí)
+EMEAC_MAX = 8     # Umbral máximo por defecto (cambia aquí)
 
 # Umbral AJUSTABLE por defecto (editable en CÓDIGO) y opción de forzarlo
-EMEAC_AJUSTABLE_DEF = 10                # Debe estar entre EMEAC_MIN y EMEAC_MAX
+EMEAC_AJUSTABLE_DEF = 8                # Debe estar entre EMEAC_MIN y EMEAC_MAX
 FORZAR_AJUSTABLE_DESDE_CODIGO = False   # True = ignora el slider y usa EMEAC_AJUSTABLE_DEF
 
 # ====================== Estado persistente ======================
